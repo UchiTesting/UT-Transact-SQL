@@ -104,22 +104,33 @@ ORDER BY o.SalesOrderID;
 -- 2. Retrieve Products with a list price of 100 or more that have been sold for less than 100.
 --      Retrieve the product ID, name, and list price for each product where the list price is 100 or more, and the product has been sold for less than 100.
 
+-- 1.
+SELECT ProductID, Name, ListPrice
+FROM SalesLT.Product AS p
+WHERE ListPrice >
+(
+    SELECT AVG(UnitPrice)
+    FROM SalesLT.SalesOrderDetail AS od
+    -- Seems it was useless.
+    -- WHERE od.ProductID = p.ProductID
+)
+--They also ordered by ProductID
+ORDER BY ProductID
+
+-- 2.
+SELECT ProductID, Name, ListPrice
+FROM SalesLT.Product AS p
+-- Operator used is >= not >
+WHERE ListPrice > 100
+    AND ProductID IN 
+(
+    SELECT ProductID
+    FROM SalesLT.SalesOrderDetail AS od
+    WHERE od.UnitPrice < 100
+        -- This was also useless
+        -- AND od.ProductID = p.ProductID
+)
 -- SOLUTIONS
-
----------------------------------------
--- Challenge 1: Analyze profitability
----------------------------------------
-
--- The standard cost of a product and the unit price at which it is sold determine its profitability. You must use correlated subqueries to compare the cost and average selling price for each product.
-
---     Retrieve the cost, list price, and average selling price for each product
---         Retrieve the product ID, name, cost, and list price for each product along with the average unit price for which that product has been sold.
---     Retrieve products that have an average selling price that is lower than the cost.
---         Filter your previous query to include only products where the cost price is higher than the average selling price.
-
--- SOLUTIONS
-
--- SOLUTIONS move after completing any exercice
 
 -- 1.1
 SELECT ProductID, Name, ListPrice
@@ -140,7 +151,65 @@ WHERE ProductID IN
 AND ListPrice >= 100.00
 ORDER BY ProductID;
 
+---------------------------------------
+-- Challenge 2: Analyze profitability
+---------------------------------------
+
+-- The standard cost of a product and the unit price at which it is sold determine its profitability. You must use correlated subqueries to compare the cost and average selling price for each product.
+
+-- 1. Retrieve the cost, list price, and average selling price for each product
+--      Retrieve the product ID, name, cost, and list price for each product along with the average unit price for which that product has been sold.
+-- 2. Retrieve products that have an average selling price that is lower than the cost.
+--      Filter your previous query to include only products where the cost price is higher than the average selling price.
+
+-- 1.
+-- Seem to work but I don't like this solution because of code duplication
+-- I tried using AS but told invalid column name where I tried to reuse
+-- Tried filtering both in the sub query and outer query
+SELECT ProductID, Name, StandardCost, ListPrice, 
+(
+    SELECT AVG(UnitPrice)
+    FROM SalesLT.SalesOrderDetail AS od
+    WHERE od.ProductID = p.ProductID
+)
+FROM SalesLT.Product AS p
+-- WHERE clause is superfluous
+WHERE (
+    SELECT AVG(UnitPrice)
+    FROM SalesLT.SalesOrderDetail AS od
+    WHERE od.ProductID = p.ProductID
+) IS NOT NULL
+
+-- 2.
+-- Even worse. Had to copy the sub query a 3rd time
+-- No wonder there is a better way to do
+-- Seems that we indeed need to duplicate the subqueries :'(
+SELECT ProductID, Name, StandardCost, ListPrice, 
+(
+    SELECT AVG(UnitPrice)
+    FROM SalesLT.SalesOrderDetail AS od -- do we really need to use a different alias?
+    WHERE od.ProductID = p.ProductID
+)
+FROM SalesLT.Product AS p
+-- Seems this part was useless
+-- WHERE (
+--     SELECT AVG(UnitPrice)
+--     FROM SalesLT.SalesOrderDetail AS od
+--     WHERE od.ProductID = p.ProductID
+-- ) IS NOT NULL 
+WHERE p.StandardCost > (
+    SELECT AVG(UnitPrice)
+    FROM SalesLT.SalesOrderDetail AS od
+    WHERE od.ProductID = p.ProductID
+)
+
+-- SOLUTIONS
+
 -- 2.1
+-- This was pretty much my first answer but I kept on editing it because
+-- it returns NULL values in AvgSellingPrice while the instructions says:
+-- "for which that product has been sold"
+-- To me this solution does not fullfil that requirement
 SELECT p.ProductID, p.Name, p.StandardCost, p.ListPrice,
     (SELECT AVG(o.UnitPrice)
     FROM SalesLT.SalesOrderDetail AS o
@@ -149,6 +218,7 @@ FROM SalesLT.Product AS p
 ORDER BY p.ProductID;
 
 -- 2.2
+-- 
 SELECT p.ProductID, p.Name, p.StandardCost, p.ListPrice,
     (SELECT AVG(o.UnitPrice)
     FROM SalesLT.SalesOrderDetail AS o
